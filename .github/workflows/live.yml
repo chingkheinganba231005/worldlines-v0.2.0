@@ -1,0 +1,95 @@
+# Continuous live monitoring. Every hour: restore the live day store from the published site,
+# fetch the newest GDELT exports, re-run the monitor, rebuild the site and publish it to gh-pages.
+# The published branch is replaced by a single commit each run, so it never grows a history.
+name: Live
+
+on:
+  schedule:
+    - cron: "23 * * * *"   # hourly; GDELT publishes a new export every 15 minutes
+  push:                    # code changes on the default branch go live at once (see the job condition)
+  workflow_dispatch:
+
+permissions:
+  contents: write   # push the built site to gh-pages
+  pages: read       # check whether GitHub Pages is switched on
+
+concurrency:
+  group: live-site
+  cancel-in-progress: false
+
+env:
+  PYTHONPATH: backend
+
+jobs:
+  update:
+    name: Refresh data and publish
+    if: github.event_name != 'push' || github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - run: pip install -r requirements.lock
+
+      - name: Restore the live day store from the published site
+        run: |
+          mkdir -p _state
+          if git fetch --quiet --depth=1 origin gh-pages; then
+            git archive FETCH_HEAD state | tar -x --strip-components=1 -C _state \
+              && echo "Restored $(find _state -type f | wc -l) state files" \
+              || echo "The published site has no state yet; starting from the committed data"
+          else
+            echo "No gh-pages branch yet; starting from the committed data"
+          fi
+
+      - name: Refresh Wikipedia labels (once a day, best effort)
+        run: |
+          if [ "$(date -u +%H)" = "03" ] || [ ! -f _state/labels/wikipedia_year_events.json ]; then
+            year=$(date -u +%Y)
+            years="$year"
+            if [ "$(date -u +%m)" -le 2 ]; then years="$((year - 1)) $year"; fi
+            python -m worldline.cli labels --dir _state/labels --years $years \
+              || echo "::warning::Wikipedia label refresh failed; keeping the previous labels"
+          fi
+
+      - name: Fetch new GDELT data, monitor, and build the site
+        run: |
+          repo="${GITHUB_REPOSITORY#*/}"
+          python -m worldline.cli build --live --out _site --commit "$GITHUB_SHA" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --base-url "https://${GITHUB_REPOSITORY_OWNER}.github.io/${repo}/"
+
+      - name: Publish to gh-pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          as_of=$(python -c 'import json; print(json.load(open("_site/data/meta.json"))["data_as_of"])')
+          cd _site
+          git init --quiet -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit --quiet -m "Live update $(date -u +%Y-%m-%dT%H:%MZ): data through ${as_of}"
+          git push --quiet --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+
+      - name: Report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          meta = json.load(open("_site/data/meta.json"))
+          latest = json.load(open("_site/data/latest.json"))
+          live = (meta.get("build") or {}).get("live") or {}
+          print("### WORLDLINE live update")
+          print(f"- Data through **{meta['data_as_of']}** (UTC); {meta['monitored']} countries monitored")
+          print(f"- Newest GDELT export: {live.get('latest_slot', 'n/a')}; slots in the 24-hour window: {live.get('window_slots', 'n/a')}")
+          print(f"- Days acquired this run: {len(live.get('acquired', []))}")
+          print(f"- Alarms today: {len(latest['alarms'])}; build took {meta['build'].get('seconds')} s")
+          PY
+          if ! gh api "repos/${GITHUB_REPOSITORY}/pages" --silent 2>/dev/null; then
+            echo "::notice::The site is built and pushed to gh-pages, but GitHub Pages is not switched on yet. Settings → Pages → Build and deployment → Deploy from a branch → gh-pages / (root) → Save."
+          fi

@@ -178,12 +178,15 @@ class Client:
 
 def served_md5(headers) -> str | None:
     """MD5 of the stored object as declared by the storage layer, if any."""
+    # GCS sends one x-goog-hash header per algorithm; proxies may legally fold them into one comma-separated value.
     for value in headers.get_all("x-goog-hash") or []:
-        if value.startswith("md5="):
-            try:
-                return base64.b64decode(value[4:]).hex()
-            except ValueError:
-                return None
+        for part in value.split(","):
+            part = part.strip()
+            if part.startswith("md5="):
+                try:
+                    return base64.b64decode(part[4:], validate=True).hex()
+                except ValueError:
+                    return None
     etag = (headers.get("ETag") or "").strip('"')
     return etag if re.fullmatch(r"[0-9a-f]{32}", etag) else None
 
@@ -207,6 +210,8 @@ def unpack(payload: bytes) -> bytes:
             if len(data) > MAX_UNCOMPRESSED_BYTES:
                 raise ProviderError("archive expanded beyond limit")
             return data
+    except ProviderError:
+        raise
     except (zipfile.BadZipFile, RuntimeError, EOFError) as exc:
         raise ProviderError("invalid, truncated or encrypted archive") from exc
 
