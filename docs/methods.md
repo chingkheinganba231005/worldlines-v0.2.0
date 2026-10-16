@@ -119,8 +119,9 @@ Each channel's score on day *t* is ranked against the same country's own scores 
 (at least 60 required):
 
 * in the body, the split-conformal p-value p = (1 + #{s<sub>i</sub> ≥ s}) / (n + 1);
-* above the 90th percentile, a peaks-over-threshold generalized Pareto tail fitted by probability-weighted
-  moments (Hosking & Wallis 1987; shape clamped to [−0.5, 0.5]) extrapolates beyond the window,
+* above the 90th percentile, once at least 20 exceedances are available, a peaks-over-threshold generalized
+  Pareto tail fitted by probability-weighted moments (Hosking & Wallis 1987; shape clamped to [−0.5, 0.5])
+  extrapolates beyond the window,
   p = (k / (n + 1)) · (1 + ξ (s − u)/σ)<sup>−1/ξ</sup>, floored at 10⁻⁶.
 
 Under exchangeability the conformal part is exactly valid; news is serially dependent and drifts, so on real
