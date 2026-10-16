@@ -103,7 +103,7 @@ def shrinkage_covariance(residuals: np.ndarray, floor: float, weight: float = 0.
     return weight * cov + (1 - weight) * target + floor * np.eye(d)
 
 
-def weekday_dummies(weekdays: Sequence[int]) -> np.ndarray:
+def weekday_dummies(weekdays: Sequence[int] | np.ndarray) -> np.ndarray:
     """Six effect-coded columns (Monday..Saturday vs Sunday) so the intercept stays an average day."""
     out = np.zeros((len(weekdays), 6))
     for row, wd in enumerate(weekdays):
@@ -149,6 +149,31 @@ def gpd_pwm(exceedances: np.ndarray) -> tuple[float, float] | None:
     return float(min(0.5, max(-0.5, xi))), float(sigma)
 
 
+def tail_pvalue_sorted(score: float, x: Sequence[float], *, tail_fraction: float = 0.1, min_exceed: int = 20,
+                       floor: float = 1e-6) -> float:
+    """tail_pvalue for an already sorted, all-finite, non-empty sequence of earlier scores."""
+    from bisect import bisect_left
+    n = len(x)
+    conformal = (1 + n - bisect_left(x, score)) / (n + 1)
+    k = int(n * tail_fraction)
+    if k < min_exceed:
+        return conformal
+    threshold = x[n - k - 1]
+    if score <= threshold:
+        return conformal
+    fit = gpd_pwm(np.asarray(x[n - k:], dtype=float) - threshold)
+    if fit is None:
+        return conformal
+    xi, sigma = fit
+    excess = (score - threshold) / sigma
+    if abs(xi) < 1e-6:
+        survival = math.exp(-excess)
+    else:
+        base = 1 + xi * excess
+        survival = 0.0 if base <= 0 else base ** (-1 / xi)
+    return float(max(floor, min(1.0, (k / (n + 1)) * survival)))
+
+
 def tail_pvalue(score: float | None, prior: Sequence[float], *, tail_fraction: float = 0.1, min_exceed: int = 20,
                 floor: float = 1e-6) -> float | None:
     """Upper-tail p-value of `score` against earlier scores: conformal in the body, GPD in the tail.
@@ -160,28 +185,10 @@ def tail_pvalue(score: float | None, prior: Sequence[float], *, tail_fraction: f
     """
     if score is None or not math.isfinite(score):
         return None
-    x = np.sort(np.asarray([v for v in prior if v is not None and math.isfinite(v)], dtype=float))
-    n = len(x)
-    if n == 0:
+    x = sorted(float(v) for v in prior if v is not None and math.isfinite(v))
+    if not x:
         return None
-    conformal = float((1 + n - np.searchsorted(x, score, side="left")) / (n + 1))
-    k = int(n * tail_fraction)
-    if k < min_exceed:
-        return conformal
-    threshold = x[n - k - 1]
-    if score <= threshold:
-        return conformal
-    fit = gpd_pwm(x[n - k:] - threshold)
-    if fit is None:
-        return conformal
-    xi, sigma = fit
-    excess = (score - threshold) / sigma
-    if abs(xi) < 1e-6:
-        survival = math.exp(-excess)
-    else:
-        base = 1 + xi * excess
-        survival = 0.0 if base <= 0 else base ** (-1 / xi)
-    return float(max(floor, min(1.0, (k / (n + 1)) * survival)))
+    return tail_pvalue_sorted(float(score), x, tail_fraction=tail_fraction, min_exceed=min_exceed, floor=floor)
 
 
 def cauchy_combination(pvalues: Sequence[float | None], weights: Sequence[float] | None = None) -> float | None:

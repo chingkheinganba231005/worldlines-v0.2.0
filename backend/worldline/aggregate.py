@@ -29,6 +29,10 @@ MIN_COOC = 2
 _ROOT_INDEX = {f"{i:02d}": i - 1 for i in range(1, 21)}
 
 
+def _previous_day(key: str) -> str:
+    return f"{date(int(key[:4]), int(key[4:6]), int(key[6:8])) - timedelta(days=1):%Y%m%d}"
+
+
 def _domain(url: str) -> str:
     if not url.startswith(("http://", "https://")):
         return ""
@@ -37,14 +41,20 @@ def _domain(url: str) -> str:
 
 
 class DayAggregator:
-    """Accumulate rows for one target UTC day from one or more archives."""
+    """Accumulate rows for one target UTC day from one or more archives.
 
-    def __init__(self, day: date):
+    With `window=True` rows from any day are accepted (the live "last 24 hours"
+    view spans two calendar days) and freshness is judged against each row's own
+    DATEADDED day.
+    """
+
+    def __init__(self, day: date, *, window: bool = False):
+        self.window = window
         self.day = day
         self.day_key = f"{day:%Y%m%d}"
         self.prev_key = f"{day - timedelta(days=1):%Y%m%d}"
         self.seen: set[str] = set()
-        self.counts = Counter()  # rows, malformed, duplicates, offday, stale, fresh, invalid
+        self.counts: Counter[str] = Counter()  # rows, malformed, duplicates, offday, stale, fresh, invalid
         self.root = [0] * 20
         self.base: Counter = Counter()
         self.isroot = self.articles = self.mentions = self.sources = 0
@@ -66,9 +76,12 @@ class DayAggregator:
             if fields is None:
                 counts["malformed"] += 1
                 continue
-            if fields[i_added][:8] != day_key:
-                counts["offday"] += 1
-                continue
+            added = fields[i_added][:8]
+            if added != day_key:
+                if not self.window:
+                    counts["offday"] += 1
+                    continue
+                day_key, prev_key = added, _previous_day(added)
             event_id = fields[ID]
             if event_id in seen:
                 counts["duplicates"] += 1

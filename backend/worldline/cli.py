@@ -96,6 +96,73 @@ def evaluate(args) -> int:
     return 0
 
 
+def labels_cmd(args) -> int:
+    from .labels import build_labels, save_labels
+    from .wikipedia import fetch_year_article
+    raw = args.dir / "raw"
+    raw.mkdir(parents=True, exist_ok=True)
+    years = args.years or [datetime.now(timezone.utc).year]
+    for year in years:
+        text = fetch_year_article(year)
+        (raw / f"wikipedia_{year}.wikitext").write_text(text, encoding="utf-8")
+        print(json.dumps({"year": year, "bytes": len(text)}))
+    if args.base and args.base.exists():
+        for path in sorted(args.base.glob("wikipedia_*.wikitext")):
+            target = raw / path.name
+            if not target.exists():
+                target.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+    save_labels(build_labels(raw), args.dir / "wikipedia_year_events.json")
+    return 0
+
+
+def build(args) -> int:
+    import shutil
+    from .daystore import DayStore, merge_stores
+    from .geo import build_map
+    from .live import nowcast, nowcast_inputs, refresh
+    from .pipeline import analyze
+    from .publish import publish_all
+    from .scenarios import build_scenarios
+    started = time.monotonic()
+    seed, state = DayStore(args.seed), DayStore(args.state)
+    live = None
+    if args.live:
+        known = merge_stores(seed, state)
+        try:
+            live = refresh(state, known, Client(), start=args.start)
+            print(json.dumps({"live": live["summary"]}), flush=True)
+        except ProviderError as exc:
+            print(json.dumps({"live_error": str(exc)}), flush=True)
+    days = merge_stores(seed, state, kind="days")
+    cooc = merge_stores(seed, state, kind="cooc")
+    evidence = merge_stores(seed, state, kind="evidence")
+    analysis = analyze(days, cooc, semantic=False)
+    clean = analysis.panel.usable & ~analysis.global_["instrument"]["degraded"]
+    scenarios = build_scenarios(analysis.panel, clean)
+    model = json.loads((ROOT / "data/model/published.json").read_text())
+    live_labels = args.state / "labels" / "wikipedia_year_events.json"
+    labels_doc = json.loads((live_labels if live_labels.exists() else ROOT / "data/labels/wikipedia_year_events.json").read_text(encoding="utf-8"))
+    results = ROOT / "research/results.json"
+    validation = json.loads(results.read_text()) if results.exists() else None
+    now = nowcast(live["window"], nowcast_inputs(analysis), live["summary"]) if live else None
+    out = args.out
+    if out.exists():
+        shutil.rmtree(out)
+    shutil.copytree(ROOT / "web", out)
+    build_info = {"commit": args.commit, "run": args.run_url, "mode": "live" if args.live else "offline",
+                  "seconds": None, "live": live["summary"] if live else None}
+    meta = publish_all(analysis, model, labels_doc, evidence, days, scenarios, validation, build_map(), out,
+                       nowcast=now, base_url=args.base_url, build=build_info)
+    (out / ".nojekyll").write_text("")
+    if args.state.exists():
+        shutil.copytree(args.state, out / "state", dirs_exist_ok=True)
+    meta["build"]["seconds"] = round(time.monotonic() - started, 1)
+    (out / "data" / "meta.json").write_text(json.dumps(meta, separators=(",", ":"), ensure_ascii=False))
+    print(json.dumps({"out": str(out), "data_as_of": meta["data_as_of"], "seconds": meta["build"]["seconds"],
+                      "nowcast": bool(now and now.get("countries"))}))
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="worldline", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -112,6 +179,21 @@ def main(argv=None) -> int:
     p.add_argument("--store", type=Path, default=ROOT / "data")
     p.add_argument("--quick", action="store_true", help="fewer permutations and bootstrap replicates")
     p.set_defaults(func=evaluate)
+    p = sub.add_parser("build", help="analyze and write the static site (optionally refreshing live data first)")
+    p.add_argument("--seed", type=Path, default=ROOT / "data", help="day store committed to git")
+    p.add_argument("--state", type=Path, default=ROOT / "_state", help="live day store (published with the site)")
+    p.add_argument("--out", type=Path, default=ROOT / "_site")
+    p.add_argument("--live", action="store_true", help="fetch new GDELT data and compute the last-24-hours nowcast")
+    p.add_argument("--start", default="2023-01-01")
+    p.add_argument("--base-url", default="https://chingkheinganba231005.github.io/worldlines-v0.2.0/")
+    p.add_argument("--commit", default=None)
+    p.add_argument("--run-url", default=None)
+    p.set_defaults(func=build)
+    p = sub.add_parser("labels", help="refresh Wikipedia year-article labels (for the prospective record)")
+    p.add_argument("--dir", type=Path, default=ROOT / "_state" / "labels")
+    p.add_argument("--base", type=Path, default=ROOT / "data" / "labels" / "raw", help="frozen pages to include")
+    p.add_argument("--years", type=int, nargs="*")
+    p.set_defaults(func=labels_cmd)
     args = parser.parse_args(argv)
     return args.func(args)
 

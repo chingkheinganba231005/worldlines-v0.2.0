@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -171,7 +172,7 @@ def circular_shift_null(alarm: np.ndarray, scored: np.ndarray, labels: Labels, t
     observed = (a & nr).sum() / max(a.sum(), 1)
     null = np.empty(permutations)
     for k in range(permutations):
-        shifts = rng.integers(min_shift, L - min_shift, size=M)
+        shifts = np.asarray(rng.integers(min_shift, L - min_shift, size=M))
         rows = (np.arange(L)[:, None] - shifts[None, :]) % L
         shifted = np.take_along_axis(a, rows, axis=0)
         null[k] = (shifted & nr).sum() / max(shifted.sum(), 1)
@@ -218,7 +219,7 @@ def bootstrap_auc(W: np.ndarray, scored: np.ndarray, labels: Labels, test: np.nd
         if other is not None:
             reference, _ = stratified_auc(other, scored, labels, test, positives=sample, negatives=negatives)
             diffs.append(value - reference)
-    out = {"auc_ci95": [float(np.nanquantile(values, 0.025)), float(np.nanquantile(values, 0.975))]}
+    out: dict[str, Any] = {"auc_ci95": [float(np.nanquantile(values, 0.025)), float(np.nanquantile(values, 0.975))]}
     if other is not None:
         out["difference_ci95"] = [float(np.nanquantile(diffs, 0.025)), float(np.nanquantile(diffs, 0.975))]
         out["difference_mean"] = float(np.nanmean(diffs))

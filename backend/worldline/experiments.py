@@ -80,12 +80,12 @@ def random_auc_distribution(scored, labels, test, draws: int = 200, seed: int = 
     """Random-score AUC over many draws: the honest way to report a chance baseline."""
     from .validate import _negatives
     negatives = _negatives(labels, scored, test)
-    values = []
+    draws_auc = []
     for k in range(draws):
         rng = np.random.default_rng(seed + k)
         p = np.where(scored, rng.uniform(size=scored.shape), np.nan)
-        values.append(stratified_auc(window_max_array(unusualness(p), scored), scored, labels, test, negatives=negatives)[0])
-    values = np.array(values)
+        draws_auc.append(stratified_auc(window_max_array(unusualness(p), scored), scored, labels, test, negatives=negatives)[0])
+    values = np.array(draws_auc)
     return {"draws": draws, "mean": float(values.mean()), "sd": float(values.std()),
             "q025": float(np.quantile(values, 0.025)), "q975": float(np.quantile(values, 0.975))}
 

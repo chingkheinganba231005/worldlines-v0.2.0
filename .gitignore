@@ -12,3 +12,12 @@ node_modules/
 data/raw/
 *.tmp
 *.tar.gz
+_site/
+_state/
+_deploy/
+_prev/
+*.jsonl.gz.tmp
+
+# Browser tests
+tests/ui/node_modules/
+_shots/

@@ -108,7 +108,7 @@ def choose_minnesota(X, Y, free, n, lags, grid) -> tuple[tuple[float, float], di
     for lam, kappa in grid:
         beta = minnesota_fit(X[:split], Y[:split], free, n, lags, lam, kappa)
         errors[(lam, kappa)] = float(np.mean((Y[split:] - X[split:] @ beta) ** 2))
-    return min(errors, key=errors.get), errors
+    return min(errors, key=lambda k: errors[k]), errors
 
 
 def lag_matrices(beta: np.ndarray, free: int, n: int, lags: int) -> np.ndarray:
@@ -159,7 +159,7 @@ def choose_penalty(X, Y, free, penalties) -> tuple[float, dict]:
     for penalty in penalties:
         beta = ridge_fit(X[:split], Y[:split], penalty, free)
         errors[penalty] = float(np.mean((Y[split:] - X[split:] @ beta) ** 2))
-    return min(errors, key=errors.get), errors
+    return min(errors, key=lambda k: errors[k]), errors
 
 
 def skill(x, world, weekdays, clean, dates, cfg: ScenarioConfig, split_date: str) -> dict:

@@ -15,6 +15,7 @@ people as a return period ("a 1-in-N-days event for this country").
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from typing import Any
 
 import numpy as np
 from scipy.linalg import helmert
@@ -22,7 +23,7 @@ from scipy.linalg import helmert
 from .panel import CONFLICT_FAMILIES, Panel
 from .reference import FAMILIES
 from .stats import (benjamini_hochberg, cauchy_combination, fit_ridge, jsd, js_contributions, smoothed_counts,
-                    tail_pvalue, weekday_dummies)
+                    tail_pvalue_sorted, weekday_dummies)
 
 MODEL_VERSION = "worldline-monitor-2.0"
 
@@ -105,17 +106,27 @@ def prequential(y: np.ndarray, valid: np.ndarray, weekdays: np.ndarray, cfg: Con
 
 
 def _calibrate(scores: np.ndarray, cfg: Config) -> np.ndarray:
-    """Upper-tail p-value of each score against earlier scores in the trailing window."""
+    """Upper-tail p-value of each score against earlier scores in the trailing window [t - calib_days, t).
+
+    A sorted window is maintained incrementally, so each day costs a bisect rather than a sort.
+    """
+    from bisect import bisect_left, insort
+    from collections import deque
     T = len(scores)
     p = np.full(T, np.nan)
-    finite = np.isfinite(scores)
-    for t in np.flatnonzero(finite):
-        lo = max(0, t - cfg.calib_days)
-        prior = scores[lo:t][finite[lo:t]]
-        if len(prior) >= cfg.min_calib:
-            value = tail_pvalue(float(scores[t]), prior, tail_fraction=cfg.tail_fraction)
-            if value is not None:
-                p[t] = value
+    window: list[float] = []
+    members: deque = deque()
+    for t in range(T):
+        while members and members[0] < t - cfg.calib_days:
+            old = members.popleft()
+            del window[bisect_left(window, float(scores[old]))]
+        value = float(scores[t])
+        if not np.isfinite(value):
+            continue
+        if len(window) >= cfg.min_calib:
+            p[t] = tail_pvalue_sorted(value, window, tail_fraction=cfg.tail_fraction)
+        insort(window, value)
+        members.append(t)
     return p
 
 
@@ -132,7 +143,7 @@ def attention_channel(n: np.ndarray, world: np.ndarray, usable: np.ndarray, week
     resid = y - pred[:, 0]
     score = np.where(valid & np.isfinite(resid), resid, np.nan)
     return {"score": score, "p": _calibrate(score, cfg), "ratio": np.exp(resid), "expected_share": np.exp(pred[:, 0]),
-            "observed_share": np.exp(y)}
+            "observed_share": np.exp(y), "prediction": pred[:, 0]}
 
 
 def conflict_channel(n: np.ndarray, v: np.ndarray, usable: np.ndarray, weekdays: np.ndarray, cfg: Config):
@@ -168,22 +179,19 @@ def mix_channel(counts: np.ndarray, usable: np.ndarray, weekdays: np.ndarray, cf
     expz = np.exp(pred @ basis)
     forecast = expz / expz.sum(1, keepdims=True)
     score = np.full(T, np.nan)
-
-    def sampling_cov(t):
-        return (basis / (np.maximum(n[t], 1) * forecast[t])) @ basis.T
-
+    # Multinomial sampling covariance in ILR coordinates for every day at once: B diag(1/(n p)) B'.
+    sampling = np.einsum("ik,tk,jk->tij", basis, 1.0 / (np.maximum(n, 1)[:, None] * forecast), basis)
     for tau, block in _blocks(fitted):
         prior = np.arange(max(0, tau - cfg.calib_days), tau)
         prior = prior[valid[prior] & np.all(np.isfinite(resid[prior]), axis=1)]
         if len(prior) < 30:
             continue
-        mean_sampling = np.mean([sampling_cov(t) for t in prior], axis=0)
-        process = np.cov(resid[prior], rowvar=False) - mean_sampling
+        process = np.cov(resid[prior], rowvar=False) - sampling[prior].mean(0)
         w, v = np.linalg.eigh((process + process.T) / 2)
         process = (v * np.maximum(w, cfg.covariance_floor)) @ v.T
         for t in block[valid[block]]:
             r = resid[t]
-            score[t] = float(np.sqrt(max(0.0, r @ np.linalg.solve(process + sampling_cov(t), r))))
+            score[t] = float(np.sqrt(max(0.0, r @ np.linalg.solve(process + sampling[t], r))))
     return {"score": score, "p": _calibrate(score, cfg), "forecast": forecast, "observed": shares}
 
 
@@ -208,24 +216,22 @@ def semantic_channel(root_counts: np.ndarray, root_vectors: np.ndarray, usable: 
     lo = np.maximum(idx - cfg.rolling_days, 0)
     prior_shares = (cs[idx] - cs[lo]) / np.maximum(cn[idx] - cn[lo], 1)[:, None]
 
-    def sampling_cov(t):
-        p = prior_shares[t] if prior_shares[t].sum() > 0 else shares[t]
-        mean = p @ root_vectors
-        return ((root_vectors.T * p) @ root_vectors - np.outer(mean, mean)) / max(n[t], 1)
-
+    weights = np.where((prior_shares.sum(1) > 0)[:, None], prior_shares, shares)
+    means = weights @ root_vectors
+    sampling = (np.einsum("ki,tk,kj->tij", root_vectors, weights, root_vectors)
+                - np.einsum("ti,tj->tij", means, means)) / np.maximum(n, 1)[:, None, None]
     score = np.full(T, np.nan)
     for tau, block in _blocks(fitted):
         prior = np.arange(max(0, tau - cfg.calib_days), tau)
         prior = prior[valid[prior] & np.all(np.isfinite(resid[prior]), axis=1)]
         if len(prior) < 30:
             continue
-        mean_sampling = np.mean([sampling_cov(t) for t in prior], axis=0)
-        process = np.cov(resid[prior], rowvar=False) - mean_sampling
+        process = np.cov(resid[prior], rowvar=False) - sampling[prior].mean(0)
         w, v = np.linalg.eigh((process + process.T) / 2)
         process = (v * np.maximum(w, cfg.covariance_floor)) @ v.T
         for t in block[valid[block]]:
             r = resid[t]
-            score[t] = float(np.sqrt(max(0.0, r @ np.linalg.solve(process + sampling_cov(t), r))))
+            score[t] = float(np.sqrt(max(0.0, r @ np.linalg.solve(process + sampling[t], r))))
     return {"score": score, "p": _calibrate(score, cfg)}
 
 
@@ -243,8 +249,9 @@ def learned_transport(panel: Panel, cost_fn, cfg: Config, top: int = 48) -> dict
     rest = [i for i in range(len(panel.base_codes)) if i not in keep]
     codes = [panel.base_codes[i] for i in keep]
     cost = cost_fn(codes)
-    other_root = max({panel.base_codes[i][:2] for i in rest}, key=lambda r: sum(totals[i] for i in rest if panel.base_codes[i][:2] == r)) if rest else None
     if rest:
+        # The pooled bin sits at the centroid of the root that contributes most of its events.
+        other_root = max({panel.base_codes[i][:2] for i in rest}, key=lambda r: sum(totals[i] for i in rest if panel.base_codes[i][:2] == r))
         other = cost_fn(codes + [other_root + "0"])[-1, :-1]
         cost = np.vstack([np.hstack([cost, other[:, None]]), np.hstack([other, [0.0]])])
     def mix(t):
@@ -342,8 +349,9 @@ def country_monitor(panel: Panel, cfg: Config, instrument: dict, root_vectors: n
     # Degraded instrument days are neither scored nor used to train or calibrate later days.
     clean = panel.usable & ~instrument["degraded"]
     keys = ["p_attention", "p_mix", "p_conflict", "s_attention", "s_mix", "s_conflict", "attention_ratio",
-            "conflict_obs", "conflict_exp", "p_combined", "p_articles", "article_ratio", "outlets", "articles", "events"]
-    out = {k: np.full((T, M), np.nan) for k in keys}
+            "conflict_obs", "conflict_exp", "p_combined", "p_articles", "article_ratio", "outlets", "articles", "events",
+            "articles_pred", "articles_score"]
+    out: dict[str, Any] = {k: np.full((T, M), np.nan) for k in keys}
     if root_vectors is not None:
         out["p_semantic"] = np.full((T, M), np.nan)
         out["p_combined_semantic"] = np.full((T, M), np.nan)
@@ -363,6 +371,7 @@ def country_monitor(panel: Panel, cfg: Config, instrument: dict, root_vectors: n
         # Attention measured in distinct articles (one article can yield many machine-extracted events).
         art = attention_channel(panel.c_urls[:, j], panel.urls, clean, panel.weekdays, cfg)
         out["p_articles"][:, m], out["article_ratio"][:, m] = art["p"], art["ratio"]
+        out["articles_pred"][:, m], out["articles_score"][:, m] = art["prediction"], art["score"]
         out["outlets"][:, m], out["articles"][:, m], out["events"][:, m] = panel.c_outlets[:, j], panel.c_urls[:, j], n
         out["mix_forecast"][:, m], out["mix_observed"][:, m] = mix["forecast"], mix["observed"]
         if root_vectors is not None:
@@ -401,8 +410,8 @@ def alarms(scores: dict, instrument: dict, cfg: Config) -> dict:
             continue
         for m, value in row.items():
             tier[t, m] = tier_of(value, cfg)
-        for m in benjamini_hochberg({str(k): v for k, v in row.items()}, cfg.fdr_q):
-            significant[t, int(m)] = True
+        for key in benjamini_hochberg({str(k): v for k, v in row.items()}, cfg.fdr_q):
+            significant[t, int(key)] = True
         turbulence[t] = sum(v <= 0.05 for v in row.values())
         expected[t] = 0.05 * len(row)
     alarm = (tier > 0) & ~instrument["degraded"][:, None]

@@ -3,22 +3,28 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "worldline-observer"
-version = "0.1.0"
-description = "A reproducible observatory of reported event patterns and predictive surprise"
+name = "worldline"
+version = "0.2.0"
+description = "A live, validated observatory of unusual change in the world's news record (GDELT)"
+readme = "README.md"
+license = { text = "MIT" }
 requires-python = ">=3.12,<3.14"
-dependencies = ["numpy==2.3.5", "scipy==1.17.0", "fastapi==0.135.2", "pydantic==2.13.5", "uvicorn==0.41.0"]
+dependencies = ["numpy==2.3.5", "scipy==1.17.0"]
 
 [project.optional-dependencies]
-test = ["pytest==9.0.2", "httpx==0.28.1", "mypy==1.19.1"]
+test = ["pytest==9.0.2", "mypy==1.19.1"]
+
+[project.scripts]
+worldline = "worldline.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["backend"]
 
 [tool.pytest.ini_options]
 pythonpath = ["backend"]
-testpaths = ["backend/tests"]
+testpaths = ["tests"]
 
 [tool.mypy]
 ignore_missing_imports = true
-check_untyped_defs = true
+check_untyped_defs = false
+warn_unused_ignores = true

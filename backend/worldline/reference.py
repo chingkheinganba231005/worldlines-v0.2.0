@@ -15,6 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 REFERENCE_DIR = Path(__file__).resolve().parents[2] / "data" / "reference"
 
@@ -38,7 +39,7 @@ QUAD_LABELS = {1: "Verbal cooperation", 2: "Material cooperation", 3: "Verbal co
 # CAMEO roots, versioned with FAMILY_VERSION; it is used for display and for
 # low-volume country compositions, never to relabel GDELT records.
 FAMILY_VERSION = "cameo-families-v1"
-FAMILIES = [
+FAMILIES: list[dict[str, Any]] = [
     {"id": "statements", "label": "Statements", "roots": ["01", "02"],
      "plain": "public statements and appeals", "color": "#8a9bb4"},
     {"id": "diplomacy", "label": "Diplomacy", "roots": ["03", "04", "05"],

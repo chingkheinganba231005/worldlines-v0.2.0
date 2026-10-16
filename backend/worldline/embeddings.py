@@ -184,12 +184,15 @@ def country_worldlines(records: dict[str, dict], countries: list[str], months: l
     for i, month in enumerate(months):
         days = [d for m in months[max(0, i - window + 1): i + 1] for d in by_month.get(m, [])]
         matrices[month] = relation_matrix(records, days, countries)
-    anchor_matrix = sum(matrices.values())
+    anchor_matrix = np.zeros((len(countries), len(countries) * 8))
+    for matrix in matrices.values():
+        anchor_matrix += matrix
     anchor_active = anchor_matrix.sum(1) >= min_events * len(months) / window
     anchor = np.zeros((len(countries), DIM))
     anchor[anchor_active] = normalize(svd_embed(ppmi(anchor_matrix[anchor_active][:, np.repeat(anchor_active, 8)])))
     positions: dict[str, np.ndarray] = {}
     active: dict[str, np.ndarray] = {}
+    volume = {month: matrix.sum(1) for month, matrix in matrices.items()}
     for month, matrix in matrices.items():
         rows = (matrix.sum(1) >= min_events) & anchor_active
         if rows.sum() < 20:
@@ -206,7 +209,7 @@ def country_worldlines(records: dict[str, dict], countries: list[str], months: l
     _, _, vt = np.linalg.svd(pooled - mean, full_matrices=False)
     plane = {m: (positions[m] - mean) @ vt[:2].T for m in positions}
     return {"months": list(positions), "positions": positions, "active": active, "plane": plane, "anchor": anchor,
-            "anchor_active": anchor_active}
+            "anchor_active": anchor_active, "volume": {m: volume[m] for m in positions}}
 
 
 def check_worldlines(model: dict, countries: list[str], k: int = 5, seed: int = 5) -> dict:

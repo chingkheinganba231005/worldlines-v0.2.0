@@ -38,7 +38,7 @@ def load_records(*roots: Path) -> tuple[dict, dict, dict]:
     return days, cooc, evidence
 
 
-def analyze(days: dict, cooc: dict, cfg: Config | None = None, *, log=print) -> Analysis:
+def analyze(days: dict, cooc: dict, cfg: Config | None = None, *, log=print, semantic: bool = True) -> Analysis:
     cfg = cfg or Config()
     timings = {}
     started = time.monotonic()
@@ -62,7 +62,7 @@ def analyze(days: dict, cooc: dict, cfg: Config | None = None, *, log=print) -> 
     log(f"global monitor + learned transport ({timings['global'] + timings['learned_transport']:.1f}s)")
 
     step = time.monotonic()
-    country = country_monitor(panel, cfg, global_["instrument"], root_vectors=vectors)
+    country = country_monitor(panel, cfg, global_["instrument"], root_vectors=vectors if semantic else None)
     timings["countries"] = time.monotonic() - step
     log(f"country monitor: {len(country['countries'])} countries ({timings['countries']:.1f}s)")
 
