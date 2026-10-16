@@ -1,191 +1,91 @@
-"""Bounded official GDELT Events ingestion. No publisher text is fetched."""
+"""Acquire UTC days from GDELT: official daily file first, 15-minute exports as the live fallback.
+
+Every returned day record carries provenance: which encoding was read, checksums
+(MD5 verified against GDELT's published list when available), retrieval time,
+and how many of the 96 fifteen-minute slots were received. Days the provider
+never published are stored as explicit gap records, never as zero activity.
+"""
 from __future__ import annotations
-import csv
-from datetime import datetime, timezone
+
 import hashlib
-import io
-import math
-from pathlib import Path
-import random
-import re
-import time
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
-from urllib.request import Request, build_opener, HTTPRedirectHandler
-import zipfile
-from typing import Any
-from .schemas import ProviderRecord
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime
 
-PARSER_VERSION = 'gdelt-events-2.0-v1'
-PREFIX = 'https://data.gdeltproject.org/gdeltv2/'
-MAX_ARCHIVE_BYTES = 16 * 1024 * 1024
-MAX_UNCOMPRESSED_BYTES = 64 * 1024 * 1024
-RIGHTS = 'GDELT dataset metadata; attribute The GDELT Project. Linked publisher content retains upstream rights.'
-COLUMNS = ['GLOBALEVENTID','SQLDATE','MonthYear','Year','FractionDate']
-for actor in ('Actor1', 'Actor2'):
-    COLUMNS += [actor+s for s in ('Code','Name','CountryCode','KnownGroupCode','EthnicCode','Religion1Code','Religion2Code','Type1Code','Type2Code','Type3Code')]
-COLUMNS += ['IsRootEvent','EventCode','EventBaseCode','EventRootCode','QuadClass','GoldsteinScale','NumMentions','NumSources','NumArticles','AvgTone']
-for actor in ('Actor1','Actor2','Action'):
-    COLUMNS += [actor+'Geo_'+s for s in ('Type','FullName','CountryCode','ADM1Code','ADM2Code','Lat','Long','FeatureID')]
-COLUMNS += ['DATEADDED','SOURCEURL']
-assert len(COLUMNS) == 61 and COLUMNS[59] == 'DATEADDED'
+from .aggregate import DayAggregator
+from .gdelt import (DAILY, FIFTEEN, Client, NotPublished, checksums, daily_url, day_slots, rows,
+                    slot_url, unpack, utc_now)
 
-class ProviderError(RuntimeError):
-    pass
+USABLE_MIN_SLOTS = 92  # >= 95.8% of a day's slots; below this a day is treated as a coverage gap
 
 
-def utc_now():
-    return datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
+def _from_daily(client: Client, day: date, expected_md5: str | None):
+    url = daily_url(day)
+    payload, meta = client.fetch_with_meta(url)
+    sums = checksums(payload)
+    aggregator = DayAggregator(day)
+    aggregator.add_rows(rows(unpack(payload), DAILY), DAILY)
+    record, cooc = aggregator.finish()
+    evidence = aggregator.evidence()
+    record["complete"] = True
+    record["provenance"] = {
+        "kind": "gdelt-daily", "layout": DAILY.name, "urls": [url], "md5": sums["md5"], "sha256": sums["sha256"],
+        "bytes": sums["bytes"], "transfer_verified": meta["transfer_verified"],
+        "listed_md5": expected_md5, "listed_md5_match": (expected_md5 == sums["md5"]) if expected_md5 else None,
+        "slots": 96, "slots_expected": 96,
+        "retrieved_at": utc_now(),
+    }
+    return record, cooc, evidence
 
 
-def source_url(value):
-    """Return safe web link only; other GDELT citations remain metadata."""
-    try:
-        parts = urlsplit(value)
-    except ValueError:
-        return None, None
-    if parts.scheme in {'https', 'http'} and parts.hostname and not parts.username and not parts.password:
-        return value, parts.hostname.lower()
-    return None, None
+def _from_slots(client: Client, day: date, latest: datetime | None, threads: int = 8):
+    stamps = [s for s in day_slots(day) if latest is None or s <= latest]
+
+    def get(stamp):
+        try:
+            return stamp, client.fetch(slot_url(stamp))
+        except NotPublished:
+            return stamp, None
+
+    with ThreadPoolExecutor(max_workers=threads) as pool:
+        results = list(pool.map(get, stamps))
+    aggregator = DayAggregator(day)
+    received, missing, digests, total_bytes = [], [], [], 0
+    for stamp, payload in results:
+        if payload is None:
+            missing.append(f"{stamp:%H%M}")
+            continue
+        aggregator.add_rows(rows(unpack(payload), FIFTEEN), FIFTEEN)
+        received.append(stamp)
+        digests.append(hashlib.sha256(payload).hexdigest())
+        total_bytes += len(payload)
+    record, cooc = aggregator.finish()
+    evidence = aggregator.evidence()
+    record["complete"] = len(received) == 96
+    record["provenance"] = {
+        "kind": "gdelt-15min" if received else "unavailable", "layout": FIFTEEN.name,
+        "urls": [slot_url(s) for s in received[:1]] + ([f"... {len(received) - 1} more"] if len(received) > 1 else []),
+        "sha256_of_slot_sha256s": hashlib.sha256("".join(digests).encode()).hexdigest() if digests else None,
+        "bytes": total_bytes, "slots": len(received), "slots_expected": 96, "missing_slots": missing[:96],
+        "retrieved_at": utc_now(), "latest_slot_considered": f"{latest:%Y%m%d%H%M%S}" if latest else None,
+    }
+    if not received:
+        record["gap"] = True
+    return record, cooc, evidence
 
 
-def parse_tsv(payload: bytes, observed_at: str | None = None, *, synthetic=False, max_records=100000):
-    if len(payload) > MAX_UNCOMPRESSED_BYTES:
-        raise ProviderError('uncompressed data exceeds limit')
-    observed_at = observed_at or utc_now()
-    datetime.fromisoformat(observed_at.replace('Z', '+00:00'))
-    try:
-        stream = io.StringIO(payload.decode('utf-8-sig', errors='strict'), newline='')
-        rows = csv.reader(stream, delimiter='\t', quoting=csv.QUOTE_NONE)
-        records: list[dict[str, Any]] = []
-        for line, row in enumerate(rows, 1):
-            if not row:
-                continue
-            if len(records) >= max_records:
-                raise ProviderError('record limit exceeded; refusing silent truncation')
-            if len(row) != 61:
-                raise ProviderError(f'line {line}: expected 61 fields, received {len(row)}')
-            data = dict(zip(COLUMNS, row))
-            try:
-                if not re.fullmatch(r'[0-9]+', data['GLOBALEVENTID']):
-                    raise ValueError('invalid record ID')
-                if not re.fullmatch(r'[0-9]{8}', data['SQLDATE']) or not re.fullmatch(r'[0-9]{14}', data['DATEADDED']):
-                    raise ValueError('invalid date format')
-                occurrence = datetime.strptime(data['SQLDATE'], '%Y%m%d').replace(tzinfo=timezone.utc)
-                availability = datetime.strptime(data['DATEADDED'], '%Y%m%d%H%M%S').replace(tzinfo=timezone.utc)
-                if not re.fullmatch(r'[0-9]{2}', data['EventRootCode']) or not 1 <= int(data['EventRootCode']) <= 20:
-                    raise ValueError('invalid CAMEO root')
-                for key in ('NumMentions', 'NumSources', 'NumArticles'):
-                    if int(data[key]) < 0:
-                        raise ValueError('negative count')
-                for key in ('GoldsteinScale', 'AvgTone'):
-                    if not math.isfinite(float(data[key])):
-                        raise ValueError('non-finite number')
-            except ValueError as exc:
-                raise ProviderError(f'line {line}: malformed required metadata: {exc}') from exc
-            url, publisher = source_url(data['SOURCEURL'])
-            clock_flags = []
-            observed_dt = datetime.fromisoformat(observed_at.replace('Z', '+00:00'))
-            if observed_dt.tzinfo is None:
-                raise ProviderError('observed_at must be timezone-aware')
-            if availability > observed_dt:
-                clock_flags.append('provider_availability_after_retrieval_clock_skew_or_provider_timestamp_issue')
-            record = ProviderRecord(
-                id='gdelt:'+data['GLOBALEVENTID'], raw_source_id=data['GLOBALEVENTID'],
-                event_time_utc=occurrence.isoformat().replace('+00:00', 'Z'),
-                available_at_utc=availability.isoformat().replace('+00:00', 'Z'),
-                observed_at_utc=observed_at, ingested_at_utc=utc_now(), source_url=url,
-                source_citation=data['SOURCEURL'], publisher=publisher,
-                label=f"{data['Actor1Name'] or 'Unspecified actor'} → CAMEO {data['EventCode']} → {data['Actor2Name'] or 'Unspecified actor'}",
-                source_diversity_count=int(data['NumSources']), is_synthetic=synthetic,
-                parser_version=PARSER_VERSION, source_checksum=hashlib.sha256('\t'.join(row).encode()).hexdigest(),
-                metadata_rights=RIGHTS,
-                credibility_flags=['automated_unverified_extraction','provider_id_is_not_verified_event_cluster','publisher_diversity_is_not_independence','occurrence_date_day_resolution','article_publication_time_unknown'] + clock_flags,
-                raw_metadata=data,
-            )
-            records.append(record.model_dump())
-        return records
-    except UnicodeError as exc:
-        raise ProviderError('invalid UTF-8 archive') from exc
+def acquire_day(client: Client, day: date, *, md5s: dict[str, str] | None = None, latest: datetime | None = None,
+                prefer_slots: bool = False):
+    """Return (day record, cooc record, evidence record) for one UTC day."""
+    if not prefer_slots:
+        try:
+            return _from_daily(client, day, (md5s or {}).get(f"{day:%Y%m%d}"))
+        except NotPublished:
+            pass
+    return _from_slots(client, day, latest)
 
 
-def validate_feed_url(url):
-    parts = urlsplit(url)
-    if parts.scheme != 'https' or parts.netloc != 'data.gdeltproject.org' or parts.query or parts.fragment:
-        raise ProviderError('only official HTTPS GDELT data URLs are allowed')
-    if not re.fullmatch(r'/gdeltv2/(?:lastupdate\.txt|[0-9]{14}\.export\.CSV\.zip)', parts.path):
-        raise ProviderError('unsupported GDELT path')
-
-
-class NoRedirect(HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise ProviderError('redirect refused; use official direct archive URL')
-
-
-class GDELTClient:
-    """Finite retries and process-local cooldown after repeated failed requests."""
-    def __init__(self, *, timeout=20, attempts=3, sleeper=time.sleep, opener=None):
-        self.timeout, self.attempts = timeout, min(max(attempts, 1), 3)
-        self.sleeper, self.opener = sleeper, opener or build_opener(NoRedirect())
-        self.failures, self.open_until = 0, 0.0
-
-    def fetch(self, url):
-        validate_feed_url(url)
-        if time.monotonic() < self.open_until:
-            raise ProviderError('provider circuit open; retry after cooldown')
-        last = None
-        for attempt in range(self.attempts):
-            try:
-                request = Request(url, headers={'User-Agent':'WORLDLINE-research/0.1 (bounded metadata ingestion)'})
-                with self.opener.open(request, timeout=self.timeout) as response:
-                    validate_feed_url(response.geturl())
-                    size = response.headers.get('Content-Length')
-                    if size and int(size) > MAX_ARCHIVE_BYTES:
-                        raise ProviderError('archive exceeds download byte limit')
-                    payload = response.read(MAX_ARCHIVE_BYTES + 1)
-                    if len(payload) > MAX_ARCHIVE_BYTES:
-                        raise ProviderError('archive exceeds download byte limit')
-                self.failures = 0
-                return payload
-            except (HTTPError, URLError, TimeoutError, OSError) as exc:
-                last = exc
-                if isinstance(exc, HTTPError) and exc.code != 429 and exc.code < 500:
-                    break
-                if attempt + 1 < self.attempts:
-                    self.sleeper(min(8.0, 0.5 * 2**attempt + random.random() * 0.25))
-        self.failures += 1
-        if self.failures >= 3:
-            self.open_until = time.monotonic() + 60
-        raise ProviderError(f'official GDELT request failed: {type(last).__name__}: {last}') from last
-
-    def latest_export(self):
-        payload = self.fetch(PREFIX+'lastupdate.txt')
-        for line in payload.decode('ascii').splitlines():
-            parts = line.split()
-            if len(parts) == 3 and parts[2].endswith('.export.CSV.zip'):
-                url = parts[2].replace('http://data.gdeltproject.org/', 'https://data.gdeltproject.org/', 1)
-                validate_feed_url(url)
-                return url
-        raise ProviderError('lastupdate manifest contains no Events archive')
-
-
-def unpack_archive(payload):
-    if len(payload) > MAX_ARCHIVE_BYTES:
-        raise ProviderError('archive exceeds byte limit')
-    try:
-        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
-            entries = archive.infolist()
-            if len(entries) != 1:
-                raise ProviderError('expected exactly one TSV member')
-            member = entries[0]
-            if '/' in member.filename or '\\' in member.filename or not re.fullmatch(r'[0-9]{14}\.export\.CSV', member.filename):
-                raise ProviderError('unexpected archive member path/name')
-            if member.file_size > MAX_UNCOMPRESSED_BYTES or member.file_size > max(member.compress_size, 1) * 250:
-                raise ProviderError('archive expansion limit exceeded')
-            with archive.open(member) as stream:
-                payload = stream.read(MAX_UNCOMPRESSED_BYTES + 1)
-                if len(payload) > MAX_UNCOMPRESSED_BYTES:
-                    raise ProviderError('archive expanded beyond limit')
-                return payload
-    except (zipfile.BadZipFile, RuntimeError) as exc:
-        raise ProviderError('invalid or encrypted archive') from exc
+def usable(record: dict | None) -> bool:
+    """Whether a day's coverage is sufficient for modeling."""
+    if not record or record.get("gap"):
+        return False
+    return bool(record.get("complete")) or (record.get("provenance", {}).get("slots", 0) or 0) >= USABLE_MIN_SLOTS
