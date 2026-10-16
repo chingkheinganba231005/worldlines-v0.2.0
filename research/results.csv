@@ -1,0 +1,31 @@
+seed,case,detector,threshold,calibration_n,evaluation_days,candidate_count,false_candidates_per_30_days,injected_episodes_detected,injected_episodes_total,candidate_precision
+73129,stationary_null,Forecast surprise,3.627973171096079,55,120,1,0.25,0,0,0.0
+73129,stationary_null,Topic displacement,0.0180413201600392,75,120,1,0.25,0,0,0.0
+73129,stationary_null,Raw news volume,247.29999999999998,75,120,0,0.0,0,0,
+73129,injected_controls,Forecast surprise,3.627973171096079,55,120,2,0.0,2,2,1.0
+73129,injected_controls,Topic displacement,0.0180413201600392,75,120,5,0.0,2,2,1.0
+73129,injected_controls,Raw news volume,247.29999999999998,75,120,3,0.5,1,2,0.3333333333333333
+73130,stationary_null,Forecast surprise,3.3200536563376217,55,120,0,0.0,0,0,
+73130,stationary_null,Topic displacement,0.016081586451732528,75,120,0,0.0,0,0,
+73130,stationary_null,Raw news volume,253.0,75,120,0,0.0,0,0,
+73130,injected_controls,Forecast surprise,3.3200536563376217,55,120,2,0.0,2,2,1.0
+73130,injected_controls,Topic displacement,0.016081586451732528,75,120,5,0.0,2,2,1.0
+73130,injected_controls,Raw news volume,253.0,75,120,2,0.5,0,2,0.0
+73131,stationary_null,Forecast surprise,3.667160929201324,55,120,0,0.0,0,0,
+73131,stationary_null,Topic displacement,0.0178647107216251,75,120,0,0.0,0,0,
+73131,stationary_null,Raw news volume,250.59999999999997,75,120,0,0.0,0,0,
+73131,injected_controls,Forecast surprise,3.667160929201324,55,120,2,0.0,2,2,1.0
+73131,injected_controls,Topic displacement,0.0178647107216251,75,120,5,0.0,2,2,1.0
+73131,injected_controls,Raw news volume,250.59999999999997,75,120,2,0.5,0,2,0.0
+73132,stationary_null,Forecast surprise,3.115046160716516,55,120,0,0.0,0,0,
+73132,stationary_null,Topic displacement,0.014085523859790748,75,120,2,0.5,0,0,0.0
+73132,stationary_null,Raw news volume,247.04999999999995,75,120,2,0.5,0,0,0.0
+73132,injected_controls,Forecast surprise,3.115046160716516,55,120,3,0.0,2,2,1.0
+73132,injected_controls,Topic displacement,0.014085523859790748,75,120,6,0.0,2,2,1.0
+73132,injected_controls,Raw news volume,247.04999999999995,75,120,5,1.0,1,2,0.2
+73133,stationary_null,Forecast surprise,3.6257644678199545,55,120,0,0.0,0,0,
+73133,stationary_null,Topic displacement,0.01830310451364834,75,120,0,0.0,0,0,
+73133,stationary_null,Raw news volume,251.29999999999998,75,120,0,0.0,0,0,
+73133,injected_controls,Forecast surprise,3.6257644678199545,55,120,2,0.0,2,2,1.0
+73133,injected_controls,Topic displacement,0.01830310451364834,75,120,5,0.0,2,2,1.0
+73133,injected_controls,Raw news volume,251.29999999999998,75,120,2,0.5,0,2,0.0

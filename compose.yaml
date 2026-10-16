@@ -1,0 +1,12 @@
+services:
+  worldline:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      WORLDLINE_DB_PATH: /app/data/worldline.sqlite
+    volumes:
+      - worldline_data:/app/data
+    restart: unless-stopped
+volumes:
+  worldline_data:

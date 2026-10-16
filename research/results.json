@@ -1,0 +1,666 @@
+{
+  "kind": "synthetic_software_benchmark",
+  "real_world_validation": false,
+  "seed_count": 5,
+  "protocol": "45 initial training windows. Calibration through day119. Evaluation days120\u2013239. Thresholds fixed at calibration .975 quantile. Two of three exceedances plus seven-day cooldown. Synthetic episode matching only; not verified news.",
+  "limitations": [
+    "Thresholds, pseudocount and ridge penalty are design choices, not tuned on an external validation corpus.",
+    "Forecast errors measure ILR coordinates; covariance intervals and empirical ranks remain unvalidated.",
+    "The synthetic generator encodes assumptions; performance here cannot establish real-world superiority.",
+    "Two injected long episodes permit repeated alerts; episode detection and candidate precision are different quantities."
+  ],
+  "results": [
+    {
+      "seed": 73129,
+      "case": "stationary_null",
+      "detector": "Forecast surprise",
+      "threshold": 3.627973171096079,
+      "calibration_n": 55,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-06-30"
+      ],
+      "candidate_count": 1,
+      "false_candidates_per_30_days": 0.25,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": 0.0
+    },
+    {
+      "seed": 73129,
+      "case": "stationary_null",
+      "detector": "Topic displacement",
+      "threshold": 0.0180413201600392,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-06-30"
+      ],
+      "candidate_count": 1,
+      "false_candidates_per_30_days": 0.25,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": 0.0
+    },
+    {
+      "seed": 73129,
+      "case": "stationary_null",
+      "detector": "Raw news volume",
+      "threshold": 247.29999999999998,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [],
+      "candidate_count": 0,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": null
+    },
+    {
+      "seed": 73129,
+      "case": "injected_controls",
+      "detector": "Forecast surprise",
+      "threshold": 3.627973171096079,
+      "calibration_n": 55,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-06-21",
+        "2025-08-10"
+      ],
+      "candidate_count": 2,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 2,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [
+        1,
+        1
+      ],
+      "candidate_precision": 1.0
+    },
+    {
+      "seed": 73129,
+      "case": "injected_controls",
+      "detector": "Topic displacement",
+      "threshold": 0.0180413201600392,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-06-21",
+        "2025-06-28",
+        "2025-08-10",
+        "2025-08-17",
+        "2025-08-24"
+      ],
+      "candidate_count": 5,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 2,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [
+        1,
+        1
+      ],
+      "candidate_precision": 1.0
+    },
+    {
+      "seed": 73129,
+      "case": "injected_controls",
+      "detector": "Raw news volume",
+      "threshold": 247.29999999999998,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-05-17",
+        "2025-06-06",
+        "2025-08-10"
+      ],
+      "candidate_count": 3,
+      "false_candidates_per_30_days": 0.5,
+      "injected_episodes_detected": 1,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [
+        1
+      ],
+      "candidate_precision": 0.3333333333333333
+    },
+    {
+      "seed": 73130,
+      "case": "stationary_null",
+      "detector": "Forecast surprise",
+      "threshold": 3.3200536563376217,
+      "calibration_n": 55,
+      "evaluation_days": 120,
+      "candidate_dates": [],
+      "candidate_count": 0,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": null
+    },
+    {
+      "seed": 73130,
+      "case": "stationary_null",
+      "detector": "Topic displacement",
+      "threshold": 0.016081586451732528,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [],
+      "candidate_count": 0,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": null
+    },
+    {
+      "seed": 73130,
+      "case": "stationary_null",
+      "detector": "Raw news volume",
+      "threshold": 253.0,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [],
+      "candidate_count": 0,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": null
+    },
+    {
+      "seed": 73130,
+      "case": "injected_controls",
+      "detector": "Forecast surprise",
+      "threshold": 3.3200536563376217,
+      "calibration_n": 55,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-06-21",
+        "2025-08-10"
+      ],
+      "candidate_count": 2,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 2,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [
+        1,
+        1
+      ],
+      "candidate_precision": 1.0
+    },
+    {
+      "seed": 73130,
+      "case": "injected_controls",
+      "detector": "Topic displacement",
+      "threshold": 0.016081586451732528,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-06-21",
+        "2025-06-28",
+        "2025-08-10",
+        "2025-08-17",
+        "2025-08-24"
+      ],
+      "candidate_count": 5,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 2,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [
+        1,
+        1
+      ],
+      "candidate_precision": 1.0
+    },
+    {
+      "seed": 73130,
+      "case": "injected_controls",
+      "detector": "Raw news volume",
+      "threshold": 253.0,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-05-17",
+        "2025-06-06"
+      ],
+      "candidate_count": 2,
+      "false_candidates_per_30_days": 0.5,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [],
+      "candidate_precision": 0.0
+    },
+    {
+      "seed": 73131,
+      "case": "stationary_null",
+      "detector": "Forecast surprise",
+      "threshold": 3.667160929201324,
+      "calibration_n": 55,
+      "evaluation_days": 120,
+      "candidate_dates": [],
+      "candidate_count": 0,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": null
+    },
+    {
+      "seed": 73131,
+      "case": "stationary_null",
+      "detector": "Topic displacement",
+      "threshold": 0.0178647107216251,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [],
+      "candidate_count": 0,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": null
+    },
+    {
+      "seed": 73131,
+      "case": "stationary_null",
+      "detector": "Raw news volume",
+      "threshold": 250.59999999999997,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [],
+      "candidate_count": 0,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": null
+    },
+    {
+      "seed": 73131,
+      "case": "injected_controls",
+      "detector": "Forecast surprise",
+      "threshold": 3.667160929201324,
+      "calibration_n": 55,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-06-21",
+        "2025-08-10"
+      ],
+      "candidate_count": 2,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 2,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [
+        1,
+        1
+      ],
+      "candidate_precision": 1.0
+    },
+    {
+      "seed": 73131,
+      "case": "injected_controls",
+      "detector": "Topic displacement",
+      "threshold": 0.0178647107216251,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-06-21",
+        "2025-06-28",
+        "2025-08-09",
+        "2025-08-16",
+        "2025-08-23"
+      ],
+      "candidate_count": 5,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 2,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [
+        1,
+        0
+      ],
+      "candidate_precision": 1.0
+    },
+    {
+      "seed": 73131,
+      "case": "injected_controls",
+      "detector": "Raw news volume",
+      "threshold": 250.59999999999997,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-05-17",
+        "2025-06-06"
+      ],
+      "candidate_count": 2,
+      "false_candidates_per_30_days": 0.5,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [],
+      "candidate_precision": 0.0
+    },
+    {
+      "seed": 73132,
+      "case": "stationary_null",
+      "detector": "Forecast surprise",
+      "threshold": 3.115046160716516,
+      "calibration_n": 55,
+      "evaluation_days": 120,
+      "candidate_dates": [],
+      "candidate_count": 0,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": null
+    },
+    {
+      "seed": 73132,
+      "case": "stationary_null",
+      "detector": "Topic displacement",
+      "threshold": 0.014085523859790748,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-06-03",
+        "2025-08-19"
+      ],
+      "candidate_count": 2,
+      "false_candidates_per_30_days": 0.5,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": 0.0
+    },
+    {
+      "seed": 73132,
+      "case": "stationary_null",
+      "detector": "Raw news volume",
+      "threshold": 247.04999999999995,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-05-04",
+        "2025-06-19"
+      ],
+      "candidate_count": 2,
+      "false_candidates_per_30_days": 0.5,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": 0.0
+    },
+    {
+      "seed": 73132,
+      "case": "injected_controls",
+      "detector": "Forecast surprise",
+      "threshold": 3.115046160716516,
+      "calibration_n": 55,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-06-21",
+        "2025-08-10",
+        "2025-08-18"
+      ],
+      "candidate_count": 3,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 2,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [
+        1,
+        1
+      ],
+      "candidate_precision": 1.0
+    },
+    {
+      "seed": 73132,
+      "case": "injected_controls",
+      "detector": "Topic displacement",
+      "threshold": 0.014085523859790748,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-06-20",
+        "2025-06-27",
+        "2025-07-04",
+        "2025-08-10",
+        "2025-08-17",
+        "2025-08-24"
+      ],
+      "candidate_count": 6,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 2,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [
+        0,
+        1
+      ],
+      "candidate_precision": 1.0
+    },
+    {
+      "seed": 73132,
+      "case": "injected_controls",
+      "detector": "Raw news volume",
+      "threshold": 247.04999999999995,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-05-04",
+        "2025-05-16",
+        "2025-06-06",
+        "2025-07-21",
+        "2025-08-15"
+      ],
+      "candidate_count": 5,
+      "false_candidates_per_30_days": 1.0,
+      "injected_episodes_detected": 1,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [
+        6
+      ],
+      "candidate_precision": 0.2
+    },
+    {
+      "seed": 73133,
+      "case": "stationary_null",
+      "detector": "Forecast surprise",
+      "threshold": 3.6257644678199545,
+      "calibration_n": 55,
+      "evaluation_days": 120,
+      "candidate_dates": [],
+      "candidate_count": 0,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": null
+    },
+    {
+      "seed": 73133,
+      "case": "stationary_null",
+      "detector": "Topic displacement",
+      "threshold": 0.01830310451364834,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [],
+      "candidate_count": 0,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": null
+    },
+    {
+      "seed": 73133,
+      "case": "stationary_null",
+      "detector": "Raw news volume",
+      "threshold": 251.29999999999998,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [],
+      "candidate_count": 0,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 0,
+      "episode_detection_delays_days": [],
+      "candidate_precision": null
+    },
+    {
+      "seed": 73133,
+      "case": "injected_controls",
+      "detector": "Forecast surprise",
+      "threshold": 3.6257644678199545,
+      "calibration_n": 55,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-06-21",
+        "2025-08-10"
+      ],
+      "candidate_count": 2,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 2,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [
+        1,
+        1
+      ],
+      "candidate_precision": 1.0
+    },
+    {
+      "seed": 73133,
+      "case": "injected_controls",
+      "detector": "Topic displacement",
+      "threshold": 0.01830310451364834,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-06-21",
+        "2025-06-28",
+        "2025-08-10",
+        "2025-08-17",
+        "2025-08-24"
+      ],
+      "candidate_count": 5,
+      "false_candidates_per_30_days": 0.0,
+      "injected_episodes_detected": 2,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [
+        1,
+        1
+      ],
+      "candidate_precision": 1.0
+    },
+    {
+      "seed": 73133,
+      "case": "injected_controls",
+      "detector": "Raw news volume",
+      "threshold": 251.29999999999998,
+      "calibration_n": 75,
+      "evaluation_days": 120,
+      "candidate_dates": [
+        "2025-05-17",
+        "2025-06-06"
+      ],
+      "candidate_count": 2,
+      "false_candidates_per_30_days": 0.5,
+      "injected_episodes_detected": 0,
+      "injected_episodes_total": 2,
+      "episode_detection_delays_days": [],
+      "candidate_precision": 0.0
+    }
+  ],
+  "forecast_comparisons": [
+    {
+      "seed": 73129,
+      "case": "stationary_null",
+      "mean_ilr_euclidean_error": {
+        "adaptive_error": 0.5241905242513927,
+        "frozen_error": 0.5632046319489661,
+        "persistence_error": 0.714071470982849
+      }
+    },
+    {
+      "seed": 73129,
+      "case": "injected_controls",
+      "mean_ilr_euclidean_error": {
+        "adaptive_error": 0.706802496777498,
+        "frozen_error": 0.956363139424129,
+        "persistence_error": 0.7884525134019307
+      }
+    },
+    {
+      "seed": 73130,
+      "case": "stationary_null",
+      "mean_ilr_euclidean_error": {
+        "adaptive_error": 0.5748521893975879,
+        "frozen_error": 0.5860799708851251,
+        "persistence_error": 0.7605648923110742
+      }
+    },
+    {
+      "seed": 73130,
+      "case": "injected_controls",
+      "mean_ilr_euclidean_error": {
+        "adaptive_error": 0.7293179522656376,
+        "frozen_error": 1.0085324327971055,
+        "persistence_error": 0.8275592013164743
+      }
+    },
+    {
+      "seed": 73131,
+      "case": "stationary_null",
+      "mean_ilr_euclidean_error": {
+        "adaptive_error": 0.5497175398608064,
+        "frozen_error": 0.5564964388531638,
+        "persistence_error": 0.7263434439327408
+      }
+    },
+    {
+      "seed": 73131,
+      "case": "injected_controls",
+      "mean_ilr_euclidean_error": {
+        "adaptive_error": 0.706333256624496,
+        "frozen_error": 0.9702052406703652,
+        "persistence_error": 0.8035781596035126
+      }
+    },
+    {
+      "seed": 73132,
+      "case": "stationary_null",
+      "mean_ilr_euclidean_error": {
+        "adaptive_error": 0.5437458095585462,
+        "frozen_error": 0.5663807071990945,
+        "persistence_error": 0.7243499356976604
+      }
+    },
+    {
+      "seed": 73132,
+      "case": "injected_controls",
+      "mean_ilr_euclidean_error": {
+        "adaptive_error": 0.7293774047365229,
+        "frozen_error": 0.9930649724494675,
+        "persistence_error": 0.8460736430368504
+      }
+    },
+    {
+      "seed": 73133,
+      "case": "stationary_null",
+      "mean_ilr_euclidean_error": {
+        "adaptive_error": 0.5367970527364915,
+        "frozen_error": 0.5417726439394592,
+        "persistence_error": 0.7421349433464296
+      }
+    },
+    {
+      "seed": 73133,
+      "case": "injected_controls",
+      "mean_ilr_euclidean_error": {
+        "adaptive_error": 0.7334036452407072,
+        "frozen_error": 0.9989546314341329,
+        "persistence_error": 0.8405881045403162
+      }
+    }
+  ]
+}
