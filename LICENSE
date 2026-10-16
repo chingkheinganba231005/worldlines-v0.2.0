@@ -20,7 +20,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Data exception: original synthetic fixture metadata is dedicated to the public
-domain under CC0. GDELT-derived metadata remains subject to its dataset terms
-and attribution to The GDELT Project. Linked publisher content has separate
+Data exception: the MIT licence covers the code. Data files keep their own
+terms: GDELT-derived aggregates (data/days, data/cooc, data/evidence and the
+published site data) remain subject to the GDELT Project's terms and require
+attribution to The GDELT Project; Wikipedia text in data/labels is CC BY-SA 4.0
+(Wikipedia contributors); GeoNames data is CC BY 4.0; Natural Earth shapes are
+public domain. WORLDLINE's own derived statistics (p-values, return periods,
+alarms, embeddings, scenario results) are released under CC BY 4.0: please
+credit WORLDLINE and The GDELT Project. Linked publisher content has separate
 rights and is not relicensed or included as full text here.
