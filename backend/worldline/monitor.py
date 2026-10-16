@@ -342,7 +342,7 @@ def country_monitor(panel: Panel, cfg: Config, instrument: dict, root_vectors: n
     # Degraded instrument days are neither scored nor used to train or calibrate later days.
     clean = panel.usable & ~instrument["degraded"]
     keys = ["p_attention", "p_mix", "p_conflict", "s_attention", "s_mix", "s_conflict", "attention_ratio",
-            "conflict_obs", "conflict_exp", "p_combined"]
+            "conflict_obs", "conflict_exp", "p_combined", "p_articles", "article_ratio", "outlets", "articles", "events"]
     out = {k: np.full((T, M), np.nan) for k in keys}
     if root_vectors is not None:
         out["p_semantic"] = np.full((T, M), np.nan)
@@ -360,6 +360,10 @@ def country_monitor(panel: Panel, cfg: Config, instrument: dict, root_vectors: n
         out["p_conflict"][:, m], out["s_conflict"][:, m] = con["p"], con["score"]
         out["conflict_obs"][:, m], out["conflict_exp"][:, m] = con["observed_share"], con["expected_share"]
         out["p_mix"][:, m], out["s_mix"][:, m] = mix["p"], mix["score"]
+        # Attention measured in distinct articles (one article can yield many machine-extracted events).
+        art = attention_channel(panel.c_urls[:, j], panel.urls, clean, panel.weekdays, cfg)
+        out["p_articles"][:, m], out["article_ratio"][:, m] = art["p"], art["ratio"]
+        out["outlets"][:, m], out["articles"][:, m], out["events"][:, m] = panel.c_outlets[:, j], panel.c_urls[:, j], n
         out["mix_forecast"][:, m], out["mix_observed"][:, m] = mix["forecast"], mix["observed"]
         if root_vectors is not None:
             out["p_semantic"][:, m] = semantic_channel(panel.c_roots[:, j, :].astype(float), root_vectors, clean,

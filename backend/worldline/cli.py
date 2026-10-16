@@ -81,6 +81,21 @@ def backfill(args) -> int:
     return 1 if failures and not args.allow_failures else 0
 
 
+def evaluate(args) -> int:
+    from .experiments import run_protocol, write_results
+    from .pipeline import analyze, load_records
+    days, cooc, _ = load_records(args.store)
+    analysis = analyze(days, cooc)
+    labels = json.loads((ROOT / "data/labels/wikipedia_year_events.json").read_text(encoding="utf-8"))["events"]
+    results, model = run_protocol(analysis, labels, quick=args.quick)
+    write_results(results, ROOT / "research")
+    model_path = ROOT / "data/model/published.json"
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    model_path.write_text(json.dumps(model, indent=1) + "\n")
+    print(json.dumps({"results": "research/results.md", "model": str(model_path.relative_to(ROOT)), "weights": model["weights"]}))
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="worldline", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -93,6 +108,10 @@ def main(argv=None) -> int:
     p.add_argument("--allow-failures", action="store_true")
     p.add_argument("--verbose", action="store_true")
     p.set_defaults(func=backfill)
+    p = sub.add_parser("evaluate", help="run validation protocol v2.0.1 and derive the published v2.1 detector")
+    p.add_argument("--store", type=Path, default=ROOT / "data")
+    p.add_argument("--quick", action="store_true", help="fewer permutations and bootstrap replicates")
+    p.set_defaults(func=evaluate)
     args = parser.parse_args(argv)
     return args.func(args)
 

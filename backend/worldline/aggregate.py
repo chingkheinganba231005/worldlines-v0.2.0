@@ -19,7 +19,7 @@ from datetime import date, timedelta
 from .gdelt import (ACTOR1_COUNTRY, ACTOR2_COUNTRY, AVG_TONE, BASE_CODE, GOLDSTEIN, ID, IS_ROOT,
                     NUM_ARTICLES, NUM_MENTIONS, NUM_SOURCES, QUAD, ROOT_CODE, SQLDATE, Layout)
 
-SCHEMA = "worldline-day-v1"
+SCHEMA = "worldline-day-v2"
 TOP_DOMAINS = 150
 TOP_SPOTS = 400
 EVIDENCE_PER_COUNTRY = 3
@@ -54,6 +54,7 @@ class DayAggregator:
         self.url_codes: dict[str, set[str]] = {}
         self.spots: dict[tuple[int, int], list[int]] = {}
         self.url_country: Counter = Counter()
+        self.country_codes: dict[str, Counter] = {}
 
     def add_rows(self, row_iter, layout: Layout) -> None:
         counts, root, base, geo, dyad, urls, spots = self.counts, self.root, self.base, self.geo, self.dyad, self.url_codes, self.spots
@@ -112,6 +113,10 @@ class DayAggregator:
                 stats[3] += gold
                 stats[4] += is_root
                 stats[5 + root_index] += 1
+                codes_here = self.country_codes.get(country)
+                if codes_here is None:
+                    codes_here = self.country_codes[country] = Counter()
+                codes_here[base_code] += 1
                 lat, lon = fields[i_lat], fields[i_lon]
                 if lat and lon:
                     try:
@@ -175,6 +180,13 @@ class DayAggregator:
                     for b in ordered[i + 1:]:
                         cooc[a + "|" + b] += 1
         domains.pop("", None)
+        breadth: dict[str, list] = {}
+        for (country, url) in self.url_country:
+            entry = breadth.get(country)
+            if entry is None:
+                entry = breadth[country] = [0, set()]
+            entry[0] += 1
+            entry[1].add(_domain(url))
         c = self.counts
         record = {
             "schema": SCHEMA, "date": self.day.isoformat(),
@@ -187,7 +199,9 @@ class DayAggregator:
             "urls": len(self.url_codes), "domains_unique": len(domains),
             "domains": dict(domains.most_common(TOP_DOMAINS)),
             "nogeo": c["nogeo"],
-            "geo": {k: {"n": v[0], "articles": v[1], "tone": round(v[2], 2), "gold": round(v[3], 2), "isroot": v[4], "root": v[5:]}
+            "geo": {k: {"n": v[0], "articles": v[1], "tone": round(v[2], 2), "gold": round(v[3], 2), "isroot": v[4], "root": v[5:],
+                        "urls": breadth.get(k, [0, set()])[0], "outlets": len(breadth.get(k, [0, set()])[1] - {""}),
+                        "top": [[code, n] for code, n in sorted(self.country_codes.get(k, Counter()).items(), key=lambda kv: (-kv[1], kv[0]))[:5]]}
                     for k, v in sorted(self.geo.items())},
             "dyad": {f"{a}>{b}": v for (a, b), v in sorted(self.dyad.items()) if sum(v) >= MIN_DYAD},
             "spots": [[lat, lon, v[0], v[1]] for (lat, lon), v in sorted(self.spots.items(), key=lambda kv: (-kv[1][0], kv[0]))[:TOP_SPOTS]],

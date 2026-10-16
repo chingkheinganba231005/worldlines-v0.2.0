@@ -36,6 +36,9 @@ class Panel:
     c_roots: np.ndarray             # (T, C, 20)
     c_total: np.ndarray             # (T, C)
     c_gold: np.ndarray              # (T, C) Goldstein sum (revision-stable)
+    c_urls: np.ndarray              # (T, C) distinct articles with fresh events located in the country
+    c_outlets: np.ndarray           # (T, C) distinct publisher domains among those articles
+    urls: np.ndarray                # (T,) distinct articles with fresh events, world
     domains: list[dict]             # per day: top publisher domains -> article count
     domains_unique: np.ndarray      # (T,)
     unmapped_fips: dict[str, int] = field(default_factory=dict)
@@ -81,6 +84,9 @@ def build_panel(records: dict[str, dict], *, include_partial: bool = True) -> Pa
     c_roots = np.zeros((T, len(countries), 20), dtype=np.float32)
     c_total = np.zeros((T, len(countries)))
     c_gold = np.zeros((T, len(countries)))
+    c_urls = np.zeros((T, len(countries)))
+    c_outlets = np.zeros((T, len(countries)))
+    urls = np.zeros(T)
     domains: list[dict] = [{} for _ in range(T)]
     domains_unique = np.zeros(T)
     unmapped: dict[str, int] = {}
@@ -107,12 +113,15 @@ def build_panel(records: dict[str, dict], *, include_partial: bool = True) -> Pa
             c_roots[t, j] += np.asarray(stats["root"], dtype=np.float32)
             c_total[t, j] += stats["n"]
             c_gold[t, j] += stats["gold"]
+            c_urls[t, j] += stats.get("urls", 0)
+            c_outlets[t, j] = max(c_outlets[t, j], stats.get("outlets", 0))  # PSE sums two FIPS codes; keep the larger
+        urls[t] = record.get("urls", 0)
         domains[t] = record.get("domains", {})
         domains_unique[t] = record.get("domains_unique", 0)
     weekdays = np.array([date.fromisoformat(d).weekday() for d in dates])
     return Panel(dates=dates, weekdays=weekdays, usable=usable, partial=partial, slots=slots, total=total,
                  roots=roots, base_codes=base_codes, base=base, countries=countries, c_roots=c_roots,
-                 c_total=c_total, c_gold=c_gold, domains=domains, domains_unique=domains_unique,
+                 c_total=c_total, c_gold=c_gold, c_urls=c_urls, c_outlets=c_outlets, urls=urls, domains=domains, domains_unique=domains_unique,
                  unmapped_fips=unmapped, records=records)
 
 

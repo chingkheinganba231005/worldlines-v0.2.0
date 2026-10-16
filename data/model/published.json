@@ -1,0 +1,15 @@
+{
+ "version": "worldline-v2.1",
+ "weights": {
+  "p_articles": 0.7021688330839786,
+  "p_mix": 0.2581782813909179,
+  "p_conflict": 0.03965288552510348
+ },
+ "min_outlets": 20,
+ "dev_auc": {
+  "D2a": 0.7728105906313646,
+  "D3": 0.6003088803088803,
+  "D4": 0.5154061624649859
+ },
+ "rule": "weight = max(dev AUC - 0.5, 0), normalized; alarms need >= 20 outlets and a healthy instrument"
+}

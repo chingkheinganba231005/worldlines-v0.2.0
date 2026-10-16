@@ -24,7 +24,7 @@ import numpy as np
 WINDOW_BEFORE = 1   # alarm may precede the listed date by one day
 WINDOW_AFTER = 2    # or follow it by up to two days
 NEGATIVE_EXCLUSION = 7
-PROTOCOL_VERSION = "worldline-validation-protocol-2.0"
+PROTOCOL_VERSION = "worldline-validation-protocol-2.0.1"
 PRIMARY_CATEGORIES = ("conflict", "political")
 
 
@@ -56,49 +56,71 @@ def label_index(labels: list[dict], dates: list[str], countries: list[str], *, c
     return Labels(sorted(pairs), {m: np.array(sorted(v)) for m, v in by_member.items()})
 
 
-def windowed_max(u: np.ndarray, t: int, m: int) -> float:
-    lo, hi = max(0, t - WINDOW_BEFORE), min(u.shape[0], t + WINDOW_AFTER + 1)
-    values = u[lo:hi, m]
-    values = values[np.isfinite(values)]
-    return float(values.max()) if len(values) else float("nan")
+def window_max_array(u: np.ndarray, scored: np.ndarray | None = None) -> np.ndarray:
+    """W[t, m] = max of u over days [t - WINDOW_BEFORE, t + WINDOW_AFTER].
+
+    Only complete windows count (every day in the window scored, judged by `scored`
+    when given, else by finite u). A window truncated by a data gap holds fewer
+    draws and therefore a stochastically smaller maximum; mixing complete and
+    truncated windows biased even random scores (quick run: AUC 0.52). Fixed in
+    protocol 2.0.1 before the full run; no detector setting was changed.
+    """
+    T = u.shape[0]
+    present = np.isfinite(u) if scored is None else scored
+    filled = np.where(np.isfinite(u), u, -np.inf)
+    out = np.full_like(filled, -np.inf)
+    count = np.zeros(u.shape, dtype=int)
+    for offset in range(-WINDOW_BEFORE, WINDOW_AFTER + 1):
+        shifted = np.full_like(filled, -np.inf)
+        present_shift = np.zeros(u.shape, dtype=bool)
+        if offset >= 0:
+            shifted[:T - offset] = filled[offset:]
+            present_shift[:T - offset] = present[offset:]
+        else:
+            shifted[-offset:] = filled[:T + offset]
+            present_shift[-offset:] = present[:T + offset]
+        out = np.maximum(out, shifted)
+        count += present_shift
+    out[(count < WINDOW_BEFORE + WINDOW_AFTER + 1) | ~np.isfinite(out)] = np.nan
+    return out
 
 
-def _auc_pairs(pos: np.ndarray, neg: np.ndarray) -> tuple[float, int]:
-    """Mann-Whitney U (ties count half) and number of pairs."""
+def _mann_whitney(pos: np.ndarray, neg: np.ndarray) -> tuple[float, int]:
+    """U statistic (ties count half) and number of pairs."""
     if not len(pos) or not len(neg):
         return 0.0, 0
-    allv = np.concatenate([pos, neg])
-    order = allv.argsort(kind="mergesort")
-    ranks = np.empty(len(allv))
-    sorted_values = allv[order]
-    i = 0
-    while i < len(allv):  # average ranks for ties
-        j = i
-        while j + 1 < len(allv) and sorted_values[j + 1] == sorted_values[i]:
-            j += 1
-        ranks[order[i:j + 1]] = (i + j) / 2 + 1
-        i = j + 1
+    from scipy.stats import rankdata
+    ranks = rankdata(np.concatenate([pos, neg]))
     u = ranks[:len(pos)].sum() - len(pos) * (len(pos) + 1) / 2
     return float(u), len(pos) * len(neg)
 
 
-def stratified_auc(u: np.ndarray, scored: np.ndarray, labels: Labels, test: np.ndarray, positives=None):
-    """Within-country AUC of windowed max scores, pooled over countries (weighted by pairs)."""
-    total_u, total_pairs, per_member = 0.0, 0, {}
-    groups: dict[int, list[int]] = {}
-    for t, m in (positives if positives is not None else labels.positives):
-        groups.setdefault(m, []).append(t)
-    for m, ts in groups.items():
-        pos = np.array([windowed_max(u, t, m) for t in ts])
-        pos = pos[np.isfinite(pos)]
-        label_days = labels.events_by_member.get(m, np.array([], int))
+def _negatives(labels: Labels, scored: np.ndarray, test: np.ndarray) -> dict[int, np.ndarray]:
+    out = {}
+    for m in labels.events_by_member:
         candidates = np.flatnonzero(test & scored[:, m])
-        if len(label_days):
+        label_days = labels.events_by_member[m]
+        if len(label_days) and len(candidates):
             distance = np.min(np.abs(candidates[:, None] - label_days[None, :]), axis=1)
             candidates = candidates[distance > NEGATIVE_EXCLUSION]
-        neg = np.array([windowed_max(u, t, m) for t in candidates])
+        out[m] = candidates
+    return out
+
+
+def stratified_auc(W: np.ndarray, scored: np.ndarray, labels: Labels, test: np.ndarray, positives=None, negatives=None):
+    """Within-country AUC of windowed max scores W, pooled over countries (weighted by pairs)."""
+    negatives = negatives if negatives is not None else _negatives(labels, scored, test)
+    groups: dict[int, list[int]] = {}
+    for t, m in (positives if positives is not None else labels.positives):
+        if test[t]:
+            groups.setdefault(m, []).append(t)
+    total_u, total_pairs, per_member = 0.0, 0, {}
+    for m, ts in groups.items():
+        pos = W[ts, m]
+        pos = pos[np.isfinite(pos)]
+        neg = W[negatives.get(m, np.array([], int)), m]
         neg = neg[np.isfinite(neg)]
-        value, pairs = _auc_pairs(pos, neg)
+        value, pairs = _mann_whitney(pos, neg)
         if pairs:
             per_member[m] = (value / pairs, len(pos))
             total_u += value
@@ -158,14 +180,14 @@ def circular_shift_null(alarm: np.ndarray, scored: np.ndarray, labels: Labels, t
             "permutations": permutations}
 
 
-def auc_null(u: np.ndarray, scored: np.ndarray, labels: Labels, test: np.ndarray, *, permutations: int = 200,
+def auc_null(W: np.ndarray, scored: np.ndarray, labels: Labels, test: np.ndarray, *, permutations: int = 200,
              seed: int = 7, min_shift: int = 30) -> dict:
     """AUC under circular shifts of each country's label dates within the test period."""
     rng = np.random.default_rng(seed)
     test_idx = np.flatnonzero(test)
-    position = {t: i for i, t in enumerate(test_idx)}
+    position = {int(t): i for i, t in enumerate(test_idx)}
     L = len(test_idx)
-    observed, _ = stratified_auc(u, scored, labels, test)
+    observed, _ = stratified_auc(W, scored, labels, test)
     null = []
     for _ in range(permutations):
         shift = {m: int(rng.integers(min_shift, L - min_shift)) for m in labels.events_by_member}
@@ -174,7 +196,7 @@ def auc_null(u: np.ndarray, scored: np.ndarray, labels: Labels, test: np.ndarray
         for t, m in shifted:
             by_member.setdefault(m, []).append(t)
         fake = Labels(shifted, {m: np.array(sorted(v)) for m, v in by_member.items()})
-        value, _ = stratified_auc(u, scored, fake, test)
+        value, _ = stratified_auc(W, scored, fake, test)
         null.append(value)
     null_arr = np.array(null)
     return {"observed_auc": float(observed), "null_mean": float(np.nanmean(null_arr)),
@@ -182,18 +204,19 @@ def auc_null(u: np.ndarray, scored: np.ndarray, labels: Labels, test: np.ndarray
             "p_value": float((1 + np.sum(null_arr >= observed)) / (len(null_arr) + 1)), "permutations": permutations}
 
 
-def bootstrap_auc(u: np.ndarray, scored: np.ndarray, labels: Labels, test: np.ndarray, *, reps: int = 300,
+def bootstrap_auc(W: np.ndarray, scored: np.ndarray, labels: Labels, test: np.ndarray, *, reps: int = 300,
                   seed: int = 11, other: np.ndarray | None = None) -> dict:
-    """Percentile bootstrap over positive labels; optional paired difference against `other` scores."""
+    """Percentile bootstrap over positive labels; optional paired difference against `other` (a W array)."""
     rng = np.random.default_rng(seed)
     positives = [p for p in labels.positives if test[p[0]]]
+    negatives = _negatives(labels, scored, test)
     values, diffs = [], []
     for _ in range(reps):
         sample = [positives[i] for i in rng.integers(0, len(positives), len(positives))]
-        value, _ = stratified_auc(u, scored, labels, test, positives=sample)
+        value, _ = stratified_auc(W, scored, labels, test, positives=sample, negatives=negatives)
         values.append(value)
         if other is not None:
-            reference, _ = stratified_auc(other, scored, labels, test, positives=sample)
+            reference, _ = stratified_auc(other, scored, labels, test, positives=sample, negatives=negatives)
             diffs.append(value - reference)
     out = {"auc_ci95": [float(np.nanquantile(values, 0.025)), float(np.nanquantile(values, 0.975))]}
     if other is not None:
