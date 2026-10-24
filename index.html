@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WORLDLINE — a live seismograph of world events</title>
+<meta name="description" content="WORLDLINE watches the world's news record every day and tells you, in plain language, where it is changing unusually — with real data, honest statistics, and a public track record.">
+<meta name="theme-color" content="#f6f6f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0c0f15" media="(prefers-color-scheme: dark)">
+<meta property="og:title" content="WORLDLINE — a live seismograph of world events">
+<meta property="og:description" content="Where is the world's news record changing unusually today? Real GDELT data, validated alarms, learned embeddings and what-if scenarios.">
+<meta property="og:type" content="website">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/rss+xml" title="WORLDLINE alarms" href="feed.xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<script>
+  try { const t = localStorage.getItem("worldline-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="#/" aria-label="WORLDLINE home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 18c4-1 6-6 9-6s4 8 8 8 6-5 9-6" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round"/><circle cx="24.5" cy="15.4" r="2.2" fill="var(--accent)"/></svg>
+      <span>WORLDLINE<small>The world's event seismograph</small></span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="#/" data-route="today">Today</a>
+      <a href="#/map" data-route="map">Map</a>
+      <a href="#/countries" data-route="countries">Countries</a>
+      <a href="#/worldlines" data-route="worldlines">Worldlines</a>
+      <a href="#/lab" data-route="lab">What-if Lab</a>
+      <a href="#/record" data-route="record">Track record</a>
+      <a href="#/method" data-route="method">How it works</a>
+    </nav>
+    <div class="header-tools">
+      <span class="live-pill" id="live-pill" title="Data freshness"><span class="live-dot"></span><span class="live-text">Loading…</span></span>
+      <button class="icon-btn" id="theme-toggle" type="button" aria-label="Switch colour theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1">
+  <div class="loading" role="status"><div class="spinner"></div>Loading the world's event record…</div>
+</main>
+<footer class="footer">
+  <div class="footer-inner">
+    <div>
+      <h4>WORLDLINE v0.2</h4>
+      <p style="margin:0 0 8px">An open, reproducible observatory of the world's news record. It measures unusual change in machine-coded news metadata — not truth, and not the future.</p>
+      <p class="muted" style="margin:0">Event data: <a href="https://www.gdeltproject.org/" rel="noopener">The GDELT Project</a>. Labels: Wikipedia contributors (CC BY-SA 4.0). Map: Natural Earth.</p>
+    </div>
+    <div>
+      <h4>Explore</h4>
+      <ul>
+        <li><a href="#/record">Is it any good? The track record</a></li>
+        <li><a href="#/method">How it works</a></li>
+        <li><a href="#/method/api">Open data &amp; JSON API</a></li>
+        <li><a href="feed.xml">Alarm feed (RSS)</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Project</h4>
+      <ul>
+        <li><a href="https://github.com/chingkheinganba231005/worldlines-v0.2.0" rel="noopener">Source code (MIT)</a></li>
+        <li><a href="https://github.com/chingkheinganba231005/worldlines-v0.2.0/blob/main/research/results.md" rel="noopener">Research results</a></li>
+        <li><a href="https://github.com/chingkheinganba231005/worldlines-v0.2.0/blob/main/research/protocol.md" rel="noopener">Pre-registered protocol</a></li>
+        <li id="build-info" class="muted"></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+<div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+<script type="module" src="assets/js/main.js"></script>
+</body>
+</html>
